@@ -54,11 +54,11 @@
       box-shadow: 0 12px 36px rgba(79, 70, 229, 0.8) !important;
     }
     .crosshair-reticle {
-      transition: transform 0.15s ease, border-color 0.2s ease;
+      transition: transform 0.1s ease, border-color 0.15s ease;
     }
     .reticle-locked {
-      border-color: #38bdf8 !important;
-      transform: scale(1.15);
+      border-color: #10b981 !important;
+      transform: scale(1.18);
     }
   </style>
   <script type="importmap">
@@ -115,7 +115,7 @@
         </div>
         <div class="flex items-center gap-2">
           <span id="simulator-badge" class="hidden text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Simulator</span>
-          <div id="lock-badge" class="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+          <div id="lock-badge" class="w-2.5 h-2.5 rounded-full bg-amber-400" title="Surface Lock Status"></div>
         </div>
       </div>
 
@@ -227,15 +227,18 @@
     let basePoint = null;
     let lastPlaceTimestamp = 0; // Cooldown timer to avoid double triggers
 
+    // Precision State
+    let isSurfaceHit = false;
+    let hasInitialTarget = false;
+    const rawTargetPos = new THREE.Vector3();
+    const smoothedTargetPos = new THREE.Vector3();
+
     // Simulation & Fallback
     let isSimulator = false;
     let controls = null;
     let simulatorMeshes = [];
     const raycaster = new THREE.Raycaster();
     const centerScreenCoords = new THREE.Vector2(0, 0); // Raycast through center crosshair
-
-    const rawTargetPos = new THREE.Vector3();
-    const smoothedTargetPos = new THREE.Vector3();
 
     // Measurement Records & History
     const historyRecords = [];
@@ -341,7 +344,7 @@
 
     window.clearPoints = (event) => {
       if (event) event.stopPropagation();
-      lastPlaceTimestamp = Date.now(); // Suppress any accidental immediate placements
+      lastPlaceTimestamp = Date.now(); // Suppress accidental immediate placements
       if (navigator.vibrate) navigator.vibrate(30);
 
       resetCurrentMeasurement();
@@ -384,9 +387,19 @@
       if (now - lastPlaceTimestamp < 250) return; // Debounce
       lastPlaceTimestamp = now;
 
+      // Accuracy Guard: Prevent placing points into unverified air space
+      if (!isSurfaceHit && !isSimulator) {
+        if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
+        const oldText = statusText.innerText;
+        statusText.innerText = "Surface Not Detected! Aim at Plane";
+        setTimeout(() => { if (!basePoint) statusText.innerText = oldText; }, 1800);
+        return;
+      }
+
       if (navigator.vibrate) navigator.vibrate(40);
 
-      const targetPos = smoothedTargetPos.clone();
+      // Instantaneous Real Hit Position (Zero lag!)
+      const targetPos = isSurfaceHit ? rawTargetPos.clone() : smoothedTargetPos.clone();
 
       if (!basePoint) {
         basePoint = targetPos.clone();
@@ -399,7 +412,7 @@
         let finalPos = targetPos.clone();
 
         if (mode === 'height') {
-          const calculatedHeight = computeHeightDelta(basePoint, camera);
+          const calculatedHeight = computeHeightDelta(basePoint, targetPos, camera);
           finalPos = new THREE.Vector3(basePoint.x, basePoint.y + calculatedHeight, basePoint.z);
         }
 
@@ -448,7 +461,14 @@
       updateUndoButtonState();
     };
 
-    function computeHeightDelta(base, cam) {
+    function computeHeightDelta(base, target, cam) {
+      // Direct surface hit: If user aims at the top of a real surface (wall, door, cabinet, table),
+      // the true vertical height is the real delta Y from ARCore hit-testing!
+      if (isSurfaceHit && Math.abs(target.y - base.y) > 0.01) {
+        return Math.max(0, target.y - base.y);
+      }
+
+      // Projection fallback for virtual air measurements (e.g. height of a person in open room)
       const ray = new THREE.Ray();
       cam.getWorldPosition(ray.origin);
       cam.getWorldDirection(ray.direction);
@@ -457,7 +477,6 @@
       const dz = ray.origin.z - base.z;
       const distSq = dx * dx + dz * dz;
 
-      // Guard against division by zero (camera directly above/below base)
       let planeNormal;
       if (distSq > 0.0001) {
         planeNormal = new THREE.Vector3(dx, 0, dz).normalize();
@@ -473,7 +492,7 @@
       if (ray.intersectPlane(plane, hit)) {
         return Math.max(0, hit.y - base.y);
       }
-      return Math.max(0, smoothedTargetPos.y - base.y);
+      return Math.max(0, target.y - base.y);
     }
 
     function createMarker(pos, colorHex) {
@@ -538,8 +557,8 @@
       switch (unit) {
         case 'cm': return (meters * 100).toFixed(1) + ' cm';
         case 'm': return meters.toFixed(2) + ' m';
-        case 'in': return (meters * 39.37).toFixed(1) + ' in';
-        case 'ft': return (meters * 3.281).toFixed(2) + ' ft';
+        case 'in': return (meters * 39.3701).toFixed(1) + ' in';
+        case 'ft': return (meters * 3.28084).toFixed(2) + ' ft';
         default: return meters.toFixed(2) + ' m';
       }
     }
@@ -694,6 +713,7 @@
       // WebXR Session Listeners
       renderer.xr.addEventListener('sessionstart', () => {
         statusText.innerText = "Aim at Base & Tap Place Point";
+        hasInitialTarget = false;
         if (desktopNotice) desktopNotice.classList.add('hidden');
       });
 
@@ -704,6 +724,8 @@
         }
         hitTestSourceRequested = false;
         hitTestSource = null;
+        hasInitialTarget = false;
+        isSurfaceHit = false;
         resetCurrentMeasurement();
       });
 
@@ -754,7 +776,7 @@
           hitTestSourceRequested = true;
         }
 
-        let isSurfaceHit = false;
+        let currentHit = false;
 
         if (hitTestSource) {
           const hitResults = frame.getHitTestResults(hitTestSource);
@@ -762,49 +784,66 @@
             const hit = hitResults[0];
             const pose = hit.getPose(refSpace);
 
-            rawTargetPos.setFromMatrixPosition(new THREE.Matrix4().fromArray(pose.transform.matrix));
-            isSurfaceHit = true;
-          } else {
-            const forward = new THREE.Vector3(0, 0, -0.8).applyQuaternion(camera.quaternion);
-            rawTargetPos.copy(camera.position).add(forward);
+            if (pose) {
+              rawTargetPos.set(
+                pose.transform.position.x,
+                pose.transform.position.y,
+                pose.transform.position.z
+              );
+              currentHit = true;
+
+              // Fast convergence: No lag when aiming, clean stabilization when stationary
+              const dist = smoothedTargetPos.distanceTo(rawTargetPos);
+              if (dist > 0.08 || !hasInitialTarget) {
+                smoothedTargetPos.copy(rawTargetPos);
+                hasInitialTarget = true;
+              } else {
+                smoothedTargetPos.lerp(rawTargetPos, 0.65);
+              }
+            }
           }
         }
 
-        // Target reticle visual styling
+        isSurfaceHit = currentHit;
+
+        // Visual Reticle Lock Indicator
         if (isSurfaceHit) {
           centerCrosshair.classList.add('reticle-locked');
-          centerDot.style.background = "#38bdf8";
-          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse";
+          centerDot.style.background = "#10b981";
+          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]";
         } else {
           centerCrosshair.classList.remove('reticle-locked');
           centerDot.style.background = "#ffffff";
-          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse";
         }
-
-        smoothedTargetPos.lerp(rawTargetPos, 0.28);
       } else if (isSimulator) {
-        // Desktop Simulator Raycasting through center screen (faithful AR reticle targeting)
+        // Desktop Simulator Raycasting
         if (controls) controls.update();
         raycaster.setFromCamera(centerScreenCoords, camera);
         const intersects = raycaster.intersectObjects(simulatorMeshes);
 
         if (intersects.length > 0) {
           rawTargetPos.copy(intersects[0].point);
+          isSurfaceHit = true;
           centerCrosshair.classList.add('reticle-locked');
-          centerDot.style.background = "#38bdf8";
-          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse";
+          centerDot.style.background = "#10b981";
+          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]";
+          smoothedTargetPos.copy(rawTargetPos);
         } else {
+          isSurfaceHit = false;
           centerCrosshair.classList.remove('reticle-locked');
           centerDot.style.background = "#ffffff";
           lockBadge.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
         }
-        smoothedTargetPos.lerp(rawTargetPos, 0.35);
       }
 
       // Zero-Allocation Live Measuring Graphics
       if (basePoint) {
+        // Use live target point
+        const activeTarget = isSurfaceHit ? rawTargetPos : smoothedTargetPos;
+
         if (mode === 'height') {
-          const deltaH = computeHeightDelta(basePoint, camera);
+          const deltaH = computeHeightDelta(basePoint, activeTarget, camera);
           readoutVal.innerText = formatDist(deltaH);
 
           if (deltaH > 0.005) {
@@ -816,15 +855,15 @@
           }
           if (liveLineMesh) liveLineMesh.visible = false;
         } else {
-          const dist = basePoint.distanceTo(smoothedTargetPos);
+          const dist = basePoint.distanceTo(activeTarget);
           readoutVal.innerText = formatDist(dist);
 
           liveLinePositions[0] = basePoint.x;
           liveLinePositions[1] = basePoint.y;
           liveLinePositions[2] = basePoint.z;
-          liveLinePositions[3] = smoothedTargetPos.x;
-          liveLinePositions[4] = smoothedTargetPos.y;
-          liveLinePositions[5] = smoothedTargetPos.z;
+          liveLinePositions[3] = activeTarget.x;
+          liveLinePositions[4] = activeTarget.y;
+          liveLinePositions[5] = activeTarget.z;
           liveLineMesh.geometry.attributes.position.needsUpdate = true;
           liveLineMesh.computeLineDistances();
           liveLineMesh.visible = true;
