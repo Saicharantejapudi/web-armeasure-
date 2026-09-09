@@ -82,16 +82,16 @@
       <!-- Mode Switcher, Unit Selector, and History Toggle -->
       <div class="flex items-center justify-between gap-2">
         <div class="hud-glass rounded-2xl p-1 flex space-x-1 shadow-2xl flex-1">
-          <button id="btn-linear" onclick="setMode('linear')" class="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all">
+          <button id="btn-linear" onclick="setMode('linear', event)" class="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all">
             Linear
           </button>
-          <button id="btn-height" onclick="setMode('height')" class="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 text-white transition-all shadow">
+          <button id="btn-height" onclick="setMode('height', event)" class="flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 text-white transition-all shadow">
             Height
           </button>
         </div>
 
         <div class="hud-glass rounded-2xl p-1 shadow-2xl">
-          <select id="unit-selector" onchange="setUnit(this.value)" class="bg-transparent text-xs font-bold text-white px-3 py-2 focus:outline-none cursor-pointer">
+          <select id="unit-selector" onchange="setUnit(this.value, event)" class="bg-transparent text-xs font-bold text-white px-3 py-2 focus:outline-none cursor-pointer">
             <option value="cm" class="bg-slate-900 text-white" selected>cm</option>
             <option value="m" class="bg-slate-900 text-white">m</option>
             <option value="in" class="bg-slate-900 text-white">in</option>
@@ -100,7 +100,7 @@
         </div>
 
         <!-- History Drawer Button -->
-        <button id="btn-history" onclick="toggleHistory()" class="hud-glass w-10 h-10 rounded-2xl flex items-center justify-center text-slate-300 hover:text-white shadow-2xl active:scale-95 transition" title="Measurement History">
+        <button id="btn-history" onclick="toggleHistory(event)" class="hud-glass w-10 h-10 rounded-2xl flex items-center justify-center text-slate-300 hover:text-white shadow-2xl active:scale-95 transition" title="Measurement History">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -110,7 +110,7 @@
       <!-- Measurement Banner -->
       <div class="hud-glass px-4 py-2.5 rounded-2xl flex items-center justify-between shadow-2xl border border-indigo-500/30">
         <div>
-          <div id="status-text" class="text-[9px] uppercase font-bold text-indigo-300 tracking-wider">Aim at Base & Tap Screen or Place Point</div>
+          <div id="status-text" class="text-[9px] uppercase font-bold text-indigo-300 tracking-wider">Aim at Base & Tap Place Point</div>
           <div id="readout-val" class="text-2xl font-mono font-bold text-white leading-tight">0.0 cm</div>
         </div>
         <div class="flex items-center gap-2">
@@ -135,22 +135,22 @@
 
     <!-- Bottom Controls (Clear, Undo, Place Point) -->
     <div class="w-full max-w-sm mx-auto flex items-center justify-center space-x-3 pointer-events-auto">
-      <!-- Clear All -->
-      <button onclick="clearPoints()" class="w-13 h-13 p-3.5 rounded-2xl bg-slate-900/90 hover:bg-rose-950 text-slate-300 hover:text-rose-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition" title="Clear All Measurements">
+      <!-- Clear All Button -->
+      <button onclick="clearPoints(event)" class="w-13 h-13 p-3.5 rounded-2xl bg-slate-900/90 hover:bg-rose-950 text-slate-300 hover:text-rose-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition" title="Clear All Measurements">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
       </button>
 
       <!-- Undo Button -->
-      <button id="btn-undo" onclick="undoPoint()" class="w-13 h-13 p-3.5 rounded-2xl bg-slate-900/90 hover:bg-amber-950 text-slate-400 hover:text-amber-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition opacity-50 cursor-not-allowed" title="Undo Last Point" disabled>
+      <button id="btn-undo" onclick="undoPoint(event)" class="w-13 h-13 p-3.5 rounded-2xl bg-slate-900/90 hover:bg-amber-950 text-slate-400 hover:text-amber-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition opacity-50 cursor-not-allowed" title="Undo Last Point" disabled>
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2m0 0l-4-4m4 4l4-4M3 10l4-4m-4 4l4 4" />
         </svg>
       </button>
 
-      <!-- Place Point -->
-      <button id="btn-action" onclick="placePoint()" class="flex-1 h-13 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/40 active:scale-95 transition flex items-center justify-center gap-2">
+      <!-- Place Point Button -->
+      <button id="btn-action" onclick="placePoint(event)" class="flex-1 h-13 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/40 active:scale-95 transition flex items-center justify-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
@@ -168,7 +168,7 @@
           <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
           <h3 class="font-bold text-sm text-white">Measurement History</h3>
         </div>
-        <button onclick="toggleHistory()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+        <button onclick="toggleHistory(event)" class="text-slate-400 hover:text-white p-1 rounded-lg">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -180,10 +180,10 @@
       </div>
 
       <div class="pt-3 border-t border-slate-700/60 flex items-center justify-between gap-2">
-        <button onclick="copyHistory()" class="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition">
+        <button onclick="copyHistory(event)" class="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition">
           Copy All to Clipboard
         </button>
-        <button onclick="clearHistory()" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-rose-300 font-semibold text-xs transition">
+        <button onclick="clearHistory(event)" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-rose-300 font-semibold text-xs transition">
           Clear
         </button>
       </div>
@@ -203,10 +203,10 @@
         Immersive AR requires an <strong>ARCore-compatible mobile browser</strong> (Chrome on Android or WebXR Viewer on iOS) served over a secure origin (<strong>HTTPS</strong> or <strong>localhost</strong>).
       </p>
       <div class="flex flex-col gap-2">
-        <button onclick="startSimulatorMode()" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs shadow-lg transition">
+        <button onclick="startSimulatorMode(event)" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs shadow-lg transition">
           Launch Interactive 3D Simulator
         </button>
-        <button onclick="closeDesktopNotice()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-semibold transition">
+        <button onclick="closeDesktopNotice(event)" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-semibold transition">
           Dismiss & View Interface
         </button>
       </div>
@@ -225,13 +225,14 @@
     let mode = 'height';
     let unit = 'cm';
     let basePoint = null;
+    let lastPlaceTimestamp = 0; // Cooldown timer to avoid double triggers
 
     // Simulation & Fallback
     let isSimulator = false;
     let controls = null;
     let simulatorMeshes = [];
     const raycaster = new THREE.Raycaster();
-    const centerScreenCoords = new THREE.Vector2(0, 0); // Raycast through center crosshair for true AR simulation
+    const centerScreenCoords = new THREE.Vector2(0, 0); // Raycast through center crosshair
 
     const rawTargetPos = new THREE.Vector3();
     const smoothedTargetPos = new THREE.Vector3();
@@ -295,7 +296,9 @@
       }
     }
 
-    window.setMode = (newMode) => {
+    window.setMode = (newMode, event) => {
+      if (event) event.stopPropagation();
+      lastPlaceTimestamp = Date.now();
       mode = newMode;
       resetCurrentMeasurement();
       document.getElementById('btn-linear').className = newMode === 'linear'
@@ -304,11 +307,12 @@
       document.getElementById('btn-height').className = newMode === 'height'
         ? "flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 text-white transition-all shadow"
         : "flex-1 py-2 px-3 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all";
-      statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap" : "Aim at Base & Tap";
+      statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap Place Point" : "Aim at Base & Tap Place Point";
       updateUndoButtonState();
     };
 
-    window.setUnit = (newUnit) => {
+    window.setUnit = (newUnit, event) => {
+      if (event) event.stopPropagation();
       unit = newUnit;
       if (!basePoint && completedMeasurements.length === 0) {
         readoutVal.innerText = formatDist(0);
@@ -323,16 +327,23 @@
     };
 
     function resetCurrentMeasurement() {
+      if (basePoint && basePoint.marker) {
+        scene.remove(basePoint.marker);
+        disposeObject(basePoint.marker);
+      }
       basePoint = null;
       if (liveLineMesh) liveLineMesh.visible = false;
       if (liveHeightGroup) liveHeightGroup.visible = false;
       readoutVal.innerText = formatDist(0);
-      statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap" : "Aim at Base & Tap";
+      statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap Place Point" : "Aim at Base & Tap Place Point";
       updateUndoButtonState();
     }
 
-    window.clearPoints = () => {
+    window.clearPoints = (event) => {
+      if (event) event.stopPropagation();
+      lastPlaceTimestamp = Date.now(); // Suppress any accidental immediate placements
       if (navigator.vibrate) navigator.vibrate(30);
+
       resetCurrentMeasurement();
 
       completedMeasurements.forEach(item => {
@@ -344,15 +355,13 @@
       updateUndoButtonState();
     };
 
-    window.undoPoint = () => {
+    window.undoPoint = (event) => {
+      if (event) event.stopPropagation();
+      lastPlaceTimestamp = Date.now();
       if (navigator.vibrate) navigator.vibrate(25);
 
       if (basePoint) {
         // Cancel in-progress measurement
-        if (basePoint.marker) {
-          scene.remove(basePoint.marker);
-          disposeObject(basePoint.marker);
-        }
         resetCurrentMeasurement();
       } else if (completedMeasurements.length > 0) {
         // Pop last completed measurement
@@ -368,7 +377,13 @@
       updateUndoButtonState();
     };
 
-    window.placePoint = () => {
+    window.placePoint = (event) => {
+      if (event) event.stopPropagation();
+
+      const now = Date.now();
+      if (now - lastPlaceTimestamp < 250) return; // Debounce
+      lastPlaceTimestamp = now;
+
       if (navigator.vibrate) navigator.vibrate(40);
 
       const targetPos = smoothedTargetPos.clone();
@@ -530,7 +545,8 @@
     }
 
     // Measurement History Drawer Logic
-    window.toggleHistory = () => {
+    window.toggleHistory = (event) => {
+      if (event) event.stopPropagation();
       historyModal.classList.toggle('hidden');
     };
 
@@ -551,7 +567,8 @@
       `).join('');
     }
 
-    window.copyHistory = () => {
+    window.copyHistory = (event) => {
+      if (event) event.stopPropagation();
       if (historyRecords.length === 0) return;
       const text = historyRecords.map((r, i) => `#${i + 1} [${r.mode}]: ${formatDist(r.distanceMeters)} (${r.time})`).join('\n');
       navigator.clipboard.writeText(text).then(() => {
@@ -561,17 +578,20 @@
       });
     };
 
-    window.clearHistory = () => {
+    window.clearHistory = (event) => {
+      if (event) event.stopPropagation();
       historyRecords.length = 0;
       renderHistoryList();
     };
 
     // Desktop Notice & Simulator Mode Handlers
-    window.closeDesktopNotice = () => {
+    window.closeDesktopNotice = (event) => {
+      if (event) event.stopPropagation();
       desktopNotice.classList.add('hidden');
     };
 
-    window.startSimulatorMode = () => {
+    window.startSimulatorMode = (event) => {
+      if (event) event.stopPropagation();
       desktopNotice.classList.add('hidden');
       hideARButton();
       simulatorBadge.classList.remove('hidden');
@@ -610,19 +630,15 @@
       scene.add(wall);
       simulatorMeshes.push(wall);
 
-      // Enable clicking on the 3D canvas to directly place points (when not dragging orbit)
-      let pointerDownPos = { x: 0, y: 0 };
-      renderer.domElement.addEventListener('pointerdown', (e) => {
-        pointerDownPos = { x: e.clientX, y: e.clientY };
-      });
-      renderer.domElement.addEventListener('pointerup', (e) => {
-        const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
-        if (dist < 5) { // Click, not orbit drag
+      // Spacebar shortcut on desktop for placing point
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && !e.repeat && document.activeElement?.tagName !== 'SELECT') {
+          e.preventDefault();
           placePoint();
         }
       });
 
-      statusText.innerText = "Desktop Simulator: Orbit & Click to Place";
+      statusText.innerText = "Desktop Simulator: Aim & Tap Place Point";
     }
 
     // Three.js Engine Setup
@@ -662,12 +678,10 @@
       liveHeightGroup.visible = false;
       scene.add(liveHeightGroup);
 
-      // WebXR AR Controller setup for screen-tap anywhere to place point
-      const xrController = renderer.xr.getController(0);
-      xrController.addEventListener('select', () => {
-        placePoint();
+      // Suppress unwanted XR select events when interacting with DOM overlay elements
+      document.addEventListener('beforexrselect', (ev) => {
+        ev.preventDefault();
       });
-      scene.add(xrController);
 
       // WebXR ARButton & Session Initialization
       const arButton = ARButton.createButton(renderer, {
@@ -679,7 +693,7 @@
 
       // WebXR Session Listeners
       renderer.xr.addEventListener('sessionstart', () => {
-        statusText.innerText = "Aim at Base & Tap Screen";
+        statusText.innerText = "Aim at Base & Tap Place Point";
         if (desktopNotice) desktopNotice.classList.add('hidden');
       });
 
