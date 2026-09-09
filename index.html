@@ -54,7 +54,7 @@
       box-shadow: 0 12px 36px rgba(79, 70, 229, 0.8) !important;
     }
     .crosshair-reticle {
-      transition: transform 0.1s ease, border-color 0.15s ease;
+      transition: transform 0.12s ease, border-color 0.15s ease;
     }
     .reticle-locked {
       border-color: #10b981 !important;
@@ -227,9 +227,10 @@
     let basePoint = null;
     let lastPlaceTimestamp = 0; // Cooldown timer to avoid double triggers
 
-    // Precision State
+    // Precision State & Lock Tracking
     let isSurfaceHit = false;
-    let hasInitialTarget = false;
+    let lastHitTimestamp = 0;
+    let hasEverHitSurface = false;
     const rawTargetPos = new THREE.Vector3();
     const smoothedTargetPos = new THREE.Vector3();
 
@@ -387,19 +388,22 @@
       if (now - lastPlaceTimestamp < 250) return; // Debounce
       lastPlaceTimestamp = now;
 
-      // Accuracy Guard: Prevent placing points into unverified air space
-      if (!isSurfaceHit && !isSimulator) {
+      // Ensure AR tracking has mapped at least one real surface
+      const hasRecentSurface = isSurfaceHit || (now - lastHitTimestamp < 650) || isSimulator;
+      if (!hasRecentSurface && !hasEverHitSurface) {
         if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-        const oldText = statusText.innerText;
-        statusText.innerText = "Surface Not Detected! Aim at Plane";
-        setTimeout(() => { if (!basePoint) statusText.innerText = oldText; }, 1800);
+        const orig = statusText.innerText;
+        statusText.innerText = "Scanning Surface... Move Phone Slowly";
+        setTimeout(() => { if (!basePoint) statusText.innerText = orig; }, 1800);
         return;
       }
 
       if (navigator.vibrate) navigator.vibrate(40);
 
-      // Instantaneous Real Hit Position (Zero lag!)
-      const targetPos = isSurfaceHit ? rawTargetPos.clone() : smoothedTargetPos.clone();
+      // Target position: Use exact instantaneous rawTargetPos if verified, or smoothed position
+      const targetPos = (hasRecentSurface && rawTargetPos.lengthSq() > 0.001) 
+        ? rawTargetPos.clone() 
+        : smoothedTargetPos.clone();
 
       if (!basePoint) {
         basePoint = targetPos.clone();
@@ -464,7 +468,7 @@
     function computeHeightDelta(base, target, cam) {
       // Direct surface hit: If user aims at the top of a real surface (wall, door, cabinet, table),
       // the true vertical height is the real delta Y from ARCore hit-testing!
-      if (isSurfaceHit && Math.abs(target.y - base.y) > 0.01) {
+      if (Math.abs(target.y - base.y) > 0.005) {
         return Math.max(0, target.y - base.y);
       }
 
@@ -713,7 +717,8 @@
       // WebXR Session Listeners
       renderer.xr.addEventListener('sessionstart', () => {
         statusText.innerText = "Aim at Base & Tap Place Point";
-        hasInitialTarget = false;
+        hasEverHitSurface = false;
+        lastHitTimestamp = 0;
         if (desktopNotice) desktopNotice.classList.add('hidden');
       });
 
@@ -724,7 +729,7 @@
         }
         hitTestSourceRequested = false;
         hitTestSource = null;
-        hasInitialTarget = false;
+        hasEverHitSurface = false;
         isSurfaceHit = false;
         resetCurrentMeasurement();
       });
@@ -761,11 +766,24 @@
         const refSpace = renderer.xr.getReferenceSpace();
 
         if (!hitTestSourceRequested) {
-          session.requestReferenceSpace('viewer').then((viewerSpace) => {
-            session.requestHitTestSource({ space: viewerSpace }).then((source) => {
+          session.requestReferenceSpace('viewer')
+            .then((viewerSpace) => {
+              // Request hit test with entityTypes for instant plane + point cloud detection
+              return session.requestHitTestSource({ 
+                space: viewerSpace,
+                entityTypes: ['plane', 'point', 'mesh']
+              }).catch(() => {
+                // Fallback for browsers without entityTypes support
+                return session.requestHitTestSource({ space: viewerSpace });
+              });
+            })
+            .then((source) => {
               hitTestSource = source;
+            })
+            .catch((err) => {
+              console.warn('Hit test source request failed:', err);
             });
-          });
+
           session.addEventListener('end', () => {
             if (hitTestSource && typeof hitTestSource.cancel === 'function') {
               hitTestSource.cancel();
@@ -778,7 +796,7 @@
 
         let currentHit = false;
 
-        if (hitTestSource) {
+        if (hitTestSource && refSpace) {
           const hitResults = frame.getHitTestResults(hitTestSource);
           if (hitResults.length > 0) {
             const hit = hitResults[0];
@@ -791,12 +809,13 @@
                 pose.transform.position.z
               );
               currentHit = true;
+              lastHitTimestamp = Date.now();
+              hasEverHitSurface = true;
 
-              // Fast convergence: No lag when aiming, clean stabilization when stationary
+              // Smoothly converge without position lag
               const dist = smoothedTargetPos.distanceTo(rawTargetPos);
-              if (dist > 0.08 || !hasInitialTarget) {
+              if (dist > 0.08 || !hasEverHitSurface) {
                 smoothedTargetPos.copy(rawTargetPos);
-                hasInitialTarget = true;
               } else {
                 smoothedTargetPos.lerp(rawTargetPos, 0.65);
               }
@@ -804,7 +823,8 @@
           }
         }
 
-        isSurfaceHit = currentHit;
+        // Active lock with 650ms temporal grace period to absorb optical jitter
+        isSurfaceHit = currentHit || (Date.now() - lastHitTimestamp < 650);
 
         // Visual Reticle Lock Indicator
         if (isSurfaceHit) {
@@ -825,6 +845,7 @@
         if (intersects.length > 0) {
           rawTargetPos.copy(intersects[0].point);
           isSurfaceHit = true;
+          hasEverHitSurface = true;
           centerCrosshair.classList.add('reticle-locked');
           centerDot.style.background = "#10b981";
           lockBadge.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]";
@@ -839,8 +860,9 @@
 
       // Zero-Allocation Live Measuring Graphics
       if (basePoint) {
-        // Use live target point
-        const activeTarget = isSurfaceHit ? rawTargetPos : smoothedTargetPos;
+        const activeTarget = (isSurfaceHit && rawTargetPos.lengthSq() > 0.001) 
+          ? rawTargetPos 
+          : smoothedTargetPos;
 
         if (mode === 'height') {
           const deltaH = computeHeightDelta(basePoint, activeTarget, camera);
