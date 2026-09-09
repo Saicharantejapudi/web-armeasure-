@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>AR Measure</title>
+  <title>AR Measure - WebXR Spatial Tape Measure</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * {
@@ -16,17 +16,17 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
-      background: #000000;
+      background: #090d16;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       touch-action: none;
       user-select: none;
       -webkit-user-select: none;
     }
     .hud-glass {
-      background: rgba(15, 23, 42, 0.88);
+      background: rgba(15, 23, 42, 0.82);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.14);
     }
     #ARButton {
       position: fixed !important;
@@ -46,6 +46,11 @@
       z-index: 99999 !important;
       box-shadow: 0 8px 28px rgba(79, 70, 229, 0.6) !important;
       cursor: pointer !important;
+      transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    #ARButton:hover {
+      transform: translate(-50%, -52%) !important;
+      box-shadow: 0 12px 36px rgba(79, 70, 229, 0.8) !important;
     }
     .crosshair-reticle {
       transition: transform 0.15s ease, border-color 0.2s ease;
@@ -64,7 +69,7 @@
     }
   </script>
 </head>
-<body class="relative">
+<body class="relative bg-slate-950 text-white">
 
   <!-- WebXR DOM Overlay Container -->
   <div id="ar-overlay" class="fixed inset-0 z-40 pointer-events-none flex flex-col justify-between" 
@@ -73,7 +78,7 @@
     <!-- Top HUD Bar -->
     <div class="w-full max-w-sm mx-auto flex flex-col gap-2.5 pointer-events-auto">
       
-      <!-- Mode Switcher & Units -->
+      <!-- Mode Switcher, Unit Selector, and History Toggle -->
       <div class="flex items-center justify-between gap-2">
         <div class="hud-glass rounded-2xl p-1 flex space-x-1 shadow-2xl flex-1">
           <button id="btn-linear" onclick="setMode('linear')" class="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all">
@@ -92,6 +97,13 @@
             <option value="ft" class="bg-slate-900 text-white">ft</option>
           </select>
         </div>
+
+        <!-- History Drawer Button -->
+        <button id="btn-history" onclick="toggleHistory()" class="hud-glass w-10 h-10 rounded-2xl flex items-center justify-center text-slate-300 hover:text-white shadow-2xl active:scale-95 transition" title="Measurement History">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </button>
       </div>
 
       <!-- Measurement Banner -->
@@ -100,7 +112,10 @@
           <div id="status-text" class="text-[9px] uppercase font-bold text-indigo-300 tracking-wider">Aim at Base & Tap Place Point</div>
           <div id="readout-val" class="text-2xl font-mono font-bold text-white leading-tight">0.0 cm</div>
         </div>
-        <div id="lock-badge" class="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+        <div class="flex items-center gap-2">
+          <span id="simulator-badge" class="hidden text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Simulator</span>
+          <div id="lock-badge" class="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
+        </div>
       </div>
 
     </div>
@@ -117,15 +132,24 @@
       </div>
     </div>
 
-    <!-- Bottom Controls -->
-    <div class="w-full max-w-sm mx-auto flex items-center justify-center space-x-4 pointer-events-auto">
-      <button onclick="clearPoints()" class="w-14 h-14 rounded-2xl bg-slate-900/90 hover:bg-rose-950 text-slate-300 hover:text-rose-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition" title="Clear Points">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <!-- Bottom Controls (Clear, Undo, Place Point) -->
+    <div class="w-full max-w-sm mx-auto flex items-center justify-center space-x-3 pointer-events-auto">
+      <!-- Clear All -->
+      <button onclick="clearPoints()" class="w-13 h-13 p-3.5 rounded-2xl bg-slate-900/90 hover:bg-rose-950 text-slate-300 hover:text-rose-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition" title="Clear All Measurements">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
         </svg>
       </button>
 
-      <button id="btn-action" onclick="placePoint()" class="flex-1 h-14 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/40 active:scale-95 transition flex items-center justify-center gap-2">
+      <!-- Undo Button -->
+      <button id="btn-undo" onclick="undoPoint()" class="w-13 h-13 p-3.5 rounded-2xl bg-slate-900/90 hover:bg-amber-950 text-slate-400 hover:text-amber-400 flex items-center justify-center border border-slate-700 shadow-2xl active:scale-90 transition opacity-50 cursor-not-allowed" title="Undo Last Point" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2m0 0l-4-4m4 4l4-4M3 10l4-4m-4 4l4 4" />
+        </svg>
+      </button>
+
+      <!-- Place Point -->
+      <button id="btn-action" onclick="placePoint()" class="flex-1 h-13 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-sm shadow-xl shadow-indigo-600/40 active:scale-95 transition flex items-center justify-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
         </svg>
@@ -135,9 +159,63 @@
 
   </div>
 
+  <!-- History Drawer Modal -->
+  <div id="history-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-4">
+    <div class="hud-glass w-full max-w-md rounded-3xl p-5 border border-slate-700 shadow-2xl flex flex-col max-h-[70vh]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-700/60">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+          <h3 class="font-bold text-sm text-white">Measurement History</h3>
+        </div>
+        <button onclick="toggleHistory()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div id="history-list" class="flex-1 overflow-y-auto py-3 space-y-2 text-xs text-slate-300">
+        <div class="text-center text-slate-500 py-6">No measurements recorded yet.</div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-700/60 flex items-center justify-between gap-2">
+        <button onclick="copyHistory()" class="flex-1 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition">
+          Copy All to Clipboard
+        </button>
+        <button onclick="clearHistory()" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-rose-900 text-slate-400 hover:text-rose-300 font-semibold text-xs transition">
+          Clear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Non-WebXR Desktop Notice Modal -->
+  <div id="desktop-notice" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="hud-glass max-w-md w-full rounded-3xl p-6 text-center border border-indigo-500/40 shadow-2xl">
+      <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center mx-auto mb-4 border border-indigo-500/30">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      </div>
+      <h2 class="text-lg font-bold text-white mb-2">WebXR AR Mode Not Detected</h2>
+      <p class="text-xs text-slate-300 leading-relaxed mb-5">
+        Immersive AR requires an <strong>ARCore-compatible mobile browser</strong> (Chrome on Android or WebXR Viewer on iOS) served over a secure origin (<strong>HTTPS</strong> or <strong>localhost</strong>).
+      </p>
+      <div class="flex flex-col gap-2">
+        <button onclick="startSimulatorMode()" class="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs shadow-lg transition">
+          Launch Interactive 3D Simulator
+        </button>
+        <button onclick="closeDesktopNotice()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 text-xs font-semibold transition">
+          Dismiss & View Interface
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script type="module">
     import * as THREE from 'three';
     import { ARButton } from 'three/addons/webxr/ARButton.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     let scene, camera, renderer;
     let hitTestSource = null;
@@ -146,14 +224,26 @@
     let mode = 'height';
     let unit = 'cm';
     let basePoint = null;
-    let liveLine = null;
-    let liveHeightColumn = null;
+
+    // Simulation & Fallback
+    let isSimulator = false;
+    let controls = null;
+    let simulatorMeshes = [];
+    const raycaster = new THREE.Raycaster();
+    const mousePos = new THREE.Vector2();
 
     const rawTargetPos = new THREE.Vector3();
     const smoothedTargetPos = new THREE.Vector3();
 
-    const placedAnchors = [];
-    const solidLines = [];
+    // Measurement Records & History
+    const historyRecords = [];
+    const completedMeasurements = []; // Stack for undo functionality { anchors: [], lines: [], labels: [], data: {} }
+
+    // Pre-allocated Zero-Allocation Live Measuring Geometries
+    let liveLineMesh = null;
+    let liveLinePositions = null;
+    let liveHeightGroup = null;
+    let liveHeightCylinder = null;
 
     const statusText = document.getElementById('status-text');
     const readoutVal = document.getElementById('readout-val');
@@ -161,10 +251,42 @@
     const overlayElement = document.getElementById('ar-overlay');
     const centerCrosshair = document.getElementById('center-crosshair');
     const centerDot = document.getElementById('center-dot');
+    const btnUndo = document.getElementById('btn-undo');
+    const historyModal = document.getElementById('history-modal');
+    const historyList = document.getElementById('history-list');
+    const desktopNotice = document.getElementById('desktop-notice');
+    const simulatorBadge = document.getElementById('simulator-badge');
+
+    // Clean Three.js Resource Disposal
+    function disposeObject(obj) {
+      if (!obj) return;
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach(m => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        } else {
+          if (obj.material.map) obj.material.map.dispose();
+          obj.material.dispose();
+        }
+      }
+    }
+
+    function updateUndoButtonState() {
+      const canUndo = Boolean(basePoint) || completedMeasurements.length > 0;
+      btnUndo.disabled = !canUndo;
+      if (canUndo) {
+        btnUndo.classList.remove('opacity-50', 'cursor-not-allowed');
+      } else {
+        btnUndo.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+    }
 
     window.setMode = (newMode) => {
       mode = newMode;
-      clearPoints();
+      resetCurrentMeasurement();
       document.getElementById('btn-linear').className = newMode === 'linear'
         ? "flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 text-white transition-all shadow"
         : "flex-1 py-2 px-3 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all";
@@ -172,30 +294,67 @@
         ? "flex-1 py-2 px-3 rounded-xl text-xs font-bold bg-indigo-600 text-white transition-all shadow"
         : "flex-1 py-2 px-3 rounded-xl text-xs font-bold text-slate-300 hover:text-white transition-all";
       statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap" : "Aim at Base & Tap";
+      updateUndoButtonState();
     };
 
     window.setUnit = (newUnit) => {
       unit = newUnit;
-      if (!basePoint) readoutVal.innerText = formatDist(0);
+      if (!basePoint && completedMeasurements.length === 0) {
+        readoutVal.innerText = formatDist(0);
+      }
+      // Re-render labels for all completed measurements
+      completedMeasurements.forEach(item => {
+        if (item.labelSprite) {
+          updateLabelSprite(item.labelSprite, formatDist(item.distanceMeters));
+        }
+      });
+      renderHistoryList();
     };
+
+    function resetCurrentMeasurement() {
+      basePoint = null;
+      if (liveLineMesh) liveLineMesh.visible = false;
+      if (liveHeightGroup) liveHeightGroup.visible = false;
+      readoutVal.innerText = formatDist(0);
+      statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap" : "Aim at Base & Tap";
+      updateUndoButtonState();
+    }
 
     window.clearPoints = () => {
       if (navigator.vibrate) navigator.vibrate(30);
-      basePoint = null;
-      if (liveLine) {
-        scene.remove(liveLine);
-        liveLine = null;
+      resetCurrentMeasurement();
+
+      completedMeasurements.forEach(item => {
+        item.anchors.forEach(m => { scene.remove(m); disposeObject(m); });
+        item.lines.forEach(l => { scene.remove(l); disposeObject(l); });
+        if (item.labelSprite) { scene.remove(item.labelSprite); disposeObject(item.labelSprite); }
+      });
+      completedMeasurements.length = 0;
+      updateUndoButtonState();
+    };
+
+    window.undoPoint = () => {
+      if (navigator.vibrate) navigator.vibrate(25);
+
+      if (basePoint) {
+        // Cancel in-progress measurement
+        if (basePoint.marker) {
+          scene.remove(basePoint.marker);
+          disposeObject(basePoint.marker);
+        }
+        resetCurrentMeasurement();
+      } else if (completedMeasurements.length > 0) {
+        // Pop last completed measurement
+        const last = completedMeasurements.pop();
+        last.anchors.forEach(m => { scene.remove(m); disposeObject(m); });
+        last.lines.forEach(l => { scene.remove(l); disposeObject(l); });
+        if (last.labelSprite) { scene.remove(last.labelSprite); disposeObject(last.labelSprite); }
+        if (historyRecords.length > 0) historyRecords.pop();
+        renderHistoryList();
+        readoutVal.innerText = formatDist(0);
+        statusText.innerText = "Undid last measurement";
       }
-      if (liveHeightColumn) {
-        scene.remove(liveHeightColumn);
-        liveHeightColumn = null;
-      }
-      placedAnchors.forEach(mesh => scene.remove(mesh));
-      solidLines.forEach(line => scene.remove(line));
-      placedAnchors.length = 0;
-      solidLines.length = 0;
-      readoutVal.innerText = formatDist(0);
-      statusText.innerText = mode === 'linear' ? "Aim at Point A & Tap" : "Aim at Base & Tap";
+      updateUndoButtonState();
     };
 
     window.placePoint = () => {
@@ -207,7 +366,7 @@
         basePoint = targetPos.clone();
         const baseMarker = createMarker(basePoint, 0x10b981);
         scene.add(baseMarker);
-        placedAnchors.push(baseMarker);
+        basePoint.marker = baseMarker;
 
         statusText.innerText = mode === 'linear' ? "Point A Set! Aim at Point B" : "Base Set! Aim at Top Edge";
       } else {
@@ -220,33 +379,50 @@
 
         const endMarker = createMarker(finalPos, 0xf59e0b);
         scene.add(endMarker);
-        placedAnchors.push(endMarker);
 
         const tube = createSolidLine(basePoint, finalPos, mode === 'linear' ? 0x10b981 : 0xf59e0b);
         scene.add(tube);
-        solidLines.push(tube);
 
-        const measured = mode === 'linear' 
+        const measuredMeters = mode === 'linear' 
           ? basePoint.distanceTo(finalPos) 
           : Math.abs(finalPos.y - basePoint.y);
 
-        statusText.innerText = mode === 'linear' ? "Linear Complete" : "Height Complete";
-        readoutVal.innerText = formatDist(measured);
+        // Create 3D floating text badge at the midpoint
+        const midPoint = new THREE.Vector3().addVectors(basePoint, finalPos).multiplyScalar(0.5);
+        if (mode === 'height') midPoint.x += 0.04; // slight horizontal offset for vertical columns
+        const labelSprite = createLabelSprite(formatDist(measuredMeters), midPoint);
+        scene.add(labelSprite);
 
-        if (liveLine) {
-          scene.remove(liveLine);
-          liveLine = null;
-        }
-        if (liveHeightColumn) {
-          scene.remove(liveHeightColumn);
-          liveHeightColumn = null;
-        }
+        // Record in history & undo stack
+        const record = {
+          id: Date.now(),
+          mode: mode,
+          distanceMeters: measuredMeters,
+          formatted: formatDist(measuredMeters),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        };
+        historyRecords.push(record);
+        renderHistoryList();
+
+        completedMeasurements.push({
+          anchors: [basePoint.marker, endMarker],
+          lines: [tube],
+          labelSprite: labelSprite,
+          distanceMeters: measuredMeters
+        });
+
+        statusText.innerText = mode === 'linear' ? "Linear Complete" : "Height Complete";
+        readoutVal.innerText = formatDist(measuredMeters);
+
+        // Hide live guides
+        if (liveLineMesh) liveLineMesh.visible = false;
+        if (liveHeightGroup) liveHeightGroup.visible = false;
         basePoint = null;
       }
+      updateUndoButtonState();
     };
 
     function computeHeightDelta(base, cam) {
-      // Ray-plane intersection from camera center to vertical plane through base
       const ray = new THREE.Ray();
       cam.getWorldPosition(ray.origin);
       cam.getWorldDirection(ray.direction);
@@ -276,6 +452,49 @@
       return new THREE.Mesh(geo, mat);
     }
 
+    // 3D Canvas Billboarded Text Sprite
+    function createLabelSprite(text, position) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 80;
+      const ctx = canvas.getContext('2d');
+
+      drawLabelCanvas(ctx, text);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;
+      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+      const sprite = new THREE.Sprite(material);
+      sprite.position.copy(position);
+      sprite.scale.set(0.18, 0.056, 1);
+      sprite.userData = { canvas, ctx, texture };
+      return sprite;
+    }
+
+    function updateLabelSprite(sprite, newText) {
+      if (!sprite || !sprite.userData || !sprite.userData.ctx) return;
+      const { ctx, texture } = sprite.userData;
+      ctx.clearRect(0, 0, 256, 80);
+      drawLabelCanvas(ctx, newText);
+      texture.needsUpdate = true;
+    }
+
+    function drawLabelCanvas(ctx, text) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.roundRect(4, 4, 248, 72, 16);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 34px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 128, 40);
+    }
+
     function formatDist(meters) {
       switch (unit) {
         case 'cm': return (meters * 100).toFixed(1) + ' cm';
@@ -286,6 +505,97 @@
       }
     }
 
+    // Measurement History Drawer Logic
+    window.toggleHistory = () => {
+      historyModal.classList.toggle('hidden');
+    };
+
+    function renderHistoryList() {
+      if (historyRecords.length === 0) {
+        historyList.innerHTML = '<div class="text-center text-slate-500 py-6">No measurements recorded yet.</div>';
+        return;
+      }
+
+      historyList.innerHTML = historyRecords.slice().reverse().map((r, idx) => `
+        <div class="hud-glass p-3 rounded-2xl flex items-center justify-between border border-slate-700/50">
+          <div>
+            <div class="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">#${historyRecords.length - idx} • ${r.mode.toUpperCase()}</div>
+            <div class="text-base font-mono font-bold text-white">${formatDist(r.distanceMeters)}</div>
+          </div>
+          <div class="text-[10px] text-slate-400 font-mono">${r.time}</div>
+        </div>
+      `).join('');
+    }
+
+    window.copyHistory = () => {
+      if (historyRecords.length === 0) return;
+      const text = historyRecords.map((r, i) => `#${i + 1} [${r.mode}]: ${formatDist(r.distanceMeters)} (${r.time})`).join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = statusText.innerText;
+        statusText.innerText = "Copied History to Clipboard!";
+        setTimeout(() => { statusText.innerText = orig; }, 2000);
+      });
+    };
+
+    window.clearHistory = () => {
+      historyRecords.length = 0;
+      renderHistoryList();
+    };
+
+    // Desktop Notice & Simulator Mode Handlers
+    window.closeDesktopNotice = () => {
+      desktopNotice.classList.add('hidden');
+    };
+
+    window.startSimulatorMode = () => {
+      desktopNotice.classList.add('hidden');
+      simulatorBadge.classList.remove('hidden');
+      isSimulator = true;
+      initSimulatorScene();
+    };
+
+    function initSimulatorScene() {
+      // Add orbit controls for desktop navigation
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.target.set(0, 0.4, -1.2);
+      camera.position.set(0, 1.2, 0.6);
+      controls.update();
+
+      // Virtual Environment: Floor Grid
+      const grid = new THREE.GridHelper(6, 30, 0x6366f1, 0x1e293b);
+      grid.position.y = 0;
+      scene.add(grid);
+      simulatorMeshes.push(grid);
+
+      // Virtual Table Box
+      const tableGeo = new THREE.BoxGeometry(0.8, 0.45, 0.5);
+      const tableMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.2 });
+      const table = new THREE.Mesh(tableGeo, tableMat);
+      table.position.set(-0.2, 0.225, -1.2);
+      scene.add(table);
+      simulatorMeshes.push(table);
+
+      // Virtual Pillar / Wall Box for Height Testing
+      const wallGeo = new THREE.BoxGeometry(0.4, 1.6, 0.4);
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 });
+      const wall = new THREE.Mesh(wallGeo, wallMat);
+      wall.position.set(0.5, 0.8, -1.5);
+      scene.add(wall);
+      simulatorMeshes.push(wall);
+
+      // Mouse Move Raycasting against virtual objects
+      window.addEventListener('pointermove', onPointerMove);
+      statusText.innerText = "Desktop Simulator: Click Objects & Measure";
+    }
+
+    function onPointerMove(event) {
+      mousePos.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mousePos.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
+
+    // Three.js Engine Setup
     function init() {
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
@@ -293,12 +603,36 @@
       const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.4);
       scene.add(light);
 
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      dirLight.position.set(1, 2, 1);
+      scene.add(dirLight);
+
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
 
+      // Pre-allocate Zero-Allocation Dynamic Live Line (Linear Mode)
+      liveLinePositions = new Float32Array(6);
+      const liveLineGeo = new THREE.BufferGeometry();
+      liveLineGeo.setAttribute('position', new THREE.BufferAttribute(liveLinePositions, 3));
+      const liveLineMat = new THREE.LineDashedMaterial({ color: 0x818cf8, dashSize: 0.03, gapSize: 0.02 });
+      liveLineMesh = new THREE.Line(liveLineGeo, liveLineMat);
+      liveLineMesh.visible = false;
+      scene.add(liveLineMesh);
+
+      // Pre-allocate Zero-Allocation Dynamic Column (Height Mode)
+      liveHeightGroup = new THREE.Group();
+      const colGeo = new THREE.CylinderGeometry(0.005, 0.005, 1, 12);
+      colGeo.translate(0, 0.5, 0); // Origin at base
+      const colMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+      liveHeightCylinder = new THREE.Mesh(colGeo, colMat);
+      liveHeightGroup.add(liveHeightCylinder);
+      liveHeightGroup.visible = false;
+      scene.add(liveHeightGroup);
+
+      // WebXR ARButton & Session Initialization
       const arButton = ARButton.createButton(renderer, {
         requiredFeatures: ['hit-test'],
         optionalFeatures: ['dom-overlay'],
@@ -306,15 +640,27 @@
       });
       document.body.appendChild(arButton);
 
+      // WebXR Session Listeners
       renderer.xr.addEventListener('sessionstart', () => {
         statusText.innerText = "Aim at Base & Tap Place Point";
+        if (desktopNotice) desktopNotice.classList.add('hidden');
       });
 
       renderer.xr.addEventListener('sessionend', () => {
         statusText.innerText = "Tap 'START AR'";
         hitTestSourceRequested = false;
         hitTestSource = null;
+        resetCurrentMeasurement();
       });
+
+      // Detect non-AR / desktop environment
+      if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+          if (!supported) desktopNotice.classList.remove('hidden');
+        }).catch(() => desktopNotice.classList.remove('hidden'));
+      } else {
+        desktopNotice.classList.remove('hidden');
+      }
 
       window.addEventListener('resize', onWindowResize);
       renderer.setAnimationLoop(render);
@@ -327,7 +673,7 @@
     }
 
     function render(timestamp, frame) {
-      if (frame) {
+      if (frame && renderer.xr.isPresenting) {
         const session = renderer.xr.getSession();
         const refSpace = renderer.xr.getReferenceSpace();
 
@@ -372,35 +718,57 @@
         }
 
         smoothedTargetPos.lerp(rawTargetPos, 0.28);
+      } else if (isSimulator) {
+        // Desktop Simulator Raycasting
+        if (controls) controls.update();
+        raycaster.setFromCamera(mousePos, camera);
+        const intersects = raycaster.intersectObjects(simulatorMeshes);
 
-        // Live Measuring Graphics
-        if (basePoint) {
-          if (mode === 'height') {
-            const deltaH = computeHeightDelta(basePoint, camera);
-            const topPos = new THREE.Vector3(basePoint.x, basePoint.y + deltaH, basePoint.z);
-            readoutVal.innerText = formatDist(deltaH);
+        if (intersects.length > 0) {
+          rawTargetPos.copy(intersects[0].point);
+          centerCrosshair.classList.add('reticle-locked');
+          centerDot.style.background = "#38bdf8";
+          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse";
+        } else {
+          centerCrosshair.classList.remove('reticle-locked');
+          centerDot.style.background = "#ffffff";
+          lockBadge.className = "w-2.5 h-2.5 rounded-full bg-amber-400";
+        }
+        smoothedTargetPos.lerp(rawTargetPos, 0.4);
+      }
 
-            if (liveHeightColumn) scene.remove(liveHeightColumn);
-            if (deltaH > 0.005) {
-              const path = new THREE.LineCurve3(basePoint, topPos);
-              const geo = new THREE.TubeGeometry(path, 1, 0.004, 8, false);
-              const mat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-              liveHeightColumn = new THREE.Mesh(geo, mat);
-              scene.add(liveHeightColumn);
-            }
+      // Zero-Allocation Live Measuring Graphics
+      if (basePoint) {
+        if (mode === 'height') {
+          const deltaH = computeHeightDelta(basePoint, camera);
+          readoutVal.innerText = formatDist(deltaH);
+
+          if (deltaH > 0.005) {
+            liveHeightGroup.position.copy(basePoint);
+            liveHeightGroup.scale.set(1, deltaH, 1);
+            liveHeightGroup.visible = true;
           } else {
-            const dist = basePoint.distanceTo(smoothedTargetPos);
-            readoutVal.innerText = formatDist(dist);
-
-            if (liveLine) scene.remove(liveLine);
-            const geo = new THREE.BufferGeometry().setFromPoints([basePoint, smoothedTargetPos]);
-            const mat = new THREE.LineDashedMaterial({ color: 0x818cf8, dashSize: 0.03, gapSize: 0.02 });
-            liveLine = new THREE.Line(geo, mat);
-            liveLine.computeLineDistances();
-            scene.add(liveLine);
+            liveHeightGroup.visible = false;
           }
+          if (liveLineMesh) liveLineMesh.visible = false;
+        } else {
+          const dist = basePoint.distanceTo(smoothedTargetPos);
+          readoutVal.innerText = formatDist(dist);
+
+          liveLinePositions[0] = basePoint.x;
+          liveLinePositions[1] = basePoint.y;
+          liveLinePositions[2] = basePoint.z;
+          liveLinePositions[3] = smoothedTargetPos.x;
+          liveLinePositions[4] = smoothedTargetPos.y;
+          liveLinePositions[5] = smoothedTargetPos.z;
+          liveLineMesh.geometry.attributes.position.needsUpdate = true;
+          liveLineMesh.computeLineDistances();
+          liveLineMesh.visible = true;
+
+          if (liveHeightGroup) liveHeightGroup.visible = false;
         }
       }
+
       renderer.render(scene, camera);
     }
 
@@ -408,4 +776,3 @@
   </script>
 </body>
 </html>
-
